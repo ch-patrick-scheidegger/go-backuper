@@ -5,17 +5,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-
-	cp "github.com/otiai10/copy"
-	//"os/dir.DirEntry"
-	//"path/filepath"
-	//"io/ioutil"
 )
 
-// https://pkg.go.dev/github.com/spf13/cobra?GOOS=windows
-// https://github.com/etcd-io/etcd/blob/main/etcdctl/go.mod
-// https://golang.google.cn/pkg/os/#DirEntry
-func main() {
+// TODO remove me
+func toBeRemoved() {
 	fmt.Print("--- Hello World ---\n")
 	directoryPath := "C:/Users/Pat/Desktop/testFolder/"
 	entries, _ := os.ReadDir(directoryPath)
@@ -27,26 +20,40 @@ func main() {
 			fmt.Printf("SHA256 signature: {%v}\n", signature)
 		}
 	}
-	// items, _ := ioutil.ReadDir(directoryPath)
-	// os.Open(directoryPath)
 }
 
-// Cases to backup files
-// 1. fromFile exists in toFile but fromHash != toHash
-// 2. fromFile does not exists in toFile
-// Cases to delete files
-// 1. toFile does not exists in fromFile -> check if some files have same hash
-// 2.
+// https://pkg.go.dev/github.com/spf13/cobra?GOOS=windows
+// https://github.com/etcd-io/etcd/blob/main/etcdctl/go.mod
+// https://golang.google.cn/pkg/os/#DirEntry
+func main() {
+	fmt.Println("\n--- Backuper ---")
+	srcPath := "C:/Users/Pat/Desktop/src/"
+	dstPath := "C:/Users/Pat/Desktop/dst/"
+	backupDirectory(srcPath, dstPath)
+}
+
 func backupDirectory(srcPath string, dstPath string) {
-	fmt.Printf("--- %v ---", srcPath)
+	fmt.Printf("Dir %v\n", srcPath)
 	srcFilesMap := createFileNameHashValueMap(srcPath)
 	dstFilesMap := createFileNameHashValueMap(dstPath)
 	// Copy non existing files and overwritte existing files where hash is not the same
 	for srcFileName, srcHash := range srcFilesMap {
+		src := srcPath + srcFileName
+		dst := dstPath + srcFileName
 		if dstHash, exists := dstFilesMap[srcFileName]; !exists {
-			//TODO copy srcFile dstFile
+			err := copyFile(src, dst)
+			if err != nil {
+				fmt.Printf("Could not copy %v because of %v\n", src, err)
+			} else {
+				fmt.Print("Copied ", src, "\n")
+			}
 		} else if dstHash != srcHash {
-			//TODO overwrite dstFile
+			err := copyFile(src, dst)
+			if err != nil {
+				fmt.Printf("Could not update %v because of %v\n", src, err)
+			} else {
+				fmt.Print("Updated ", src, "\n")
+			}
 		}
 	}
 	// Delete files that only exist in dst
@@ -55,23 +62,30 @@ func backupDirectory(srcPath string, dstPath string) {
 			toRemove := dstPath + dstFileName
 			err := os.Remove(toRemove)
 			if err != nil {
-				fmt.Printf("Could not delete file %v because of %v", toRemove, err)
+				fmt.Printf("Could not delete file %v because of %v\n", toRemove, err)
+			} else {
+				fmt.Println("Deleted ", toRemove)
 			}
 		}
 	}
 
-	srcSubDirs, _ := getSubDirs(srcPath)
-	dstSubDirs, _ := getSubDirs(dstPath)
+	srcSubDirs, err := getSubDirs(srcPath)
+	if err != nil {
+		fmt.Printf("Could not read src subdirs of %v because of %v", srcPath, err)
+	}
+	dstSubDirs, err := getSubDirs(dstPath)
+	if err != nil {
+		fmt.Printf("Could not read dst subdirs of %v because of %v", dstPath, err)
+	}
 	// Delete sub dirs that exist in dst but not in src
 	for dstSubDir := range dstSubDirs {
 		if !srcSubDirs.Contains(dstSubDir) {
-			// TODO remove dstSubDir
 			toRemove := dstPath + dstSubDir + "/"
 			err := os.RemoveAll(toRemove)
 			if err != nil {
-				fmt.Printf("Could not delete dst dir %v because of %v", toRemove, err)
+				fmt.Printf("Could not delete dst dir %v because of %v\n", toRemove, err)
 			} else {
-				fmt.Print("Deleted ", toRemove)
+				fmt.Print("Deleted dir ", toRemove, "\n")
 			}
 		}
 	}
@@ -79,17 +93,57 @@ func backupDirectory(srcPath string, dstPath string) {
 	// Recursively call this function to backup sub dirs
 	for srcSubDir := range srcSubDirs {
 		if !dstSubDirs.Contains(srcSubDir) {
-			err := cp.Copy(srcSubDir, dstPath)
+			err := copyDir(srcPath+srcSubDir+"/", dstPath+srcSubDir+"/")
 			if err != nil {
-				fmt.Printf("Could not copy dir %v because of %v", srcSubDir, err)
+				fmt.Printf("Could not copy dir %v because of %v\n", srcSubDir, err)
 			} else {
-				fmt.Print("Copied ", srcSubDir)
+				fmt.Print("Copied dir ", srcPath+srcSubDir, "\n")
 			}
 		} else {
 			subDirToCheck := srcSubDir + "/"
 			backupDirectory(srcPath+subDirToCheck, dstPath+subDirToCheck)
 		}
 	}
+}
+
+func copyDir(srcDirPath, dstDirPath string) error {
+	err := os.Mkdir(dstDirPath, 0777)
+	if err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(srcDirPath)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			if err := copyFile(srcDirPath+entry.Name(), dstDirPath+entry.Name()); err != nil {
+				return err
+			}
+		} else {
+			if err := copyDir(srcDirPath+entry.Name()+"/", dstDirPath+entry.Name()+"/"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func copyFile(srcFileName, dstFileName string) error {
+	srcFile, err := os.Open(srcFileName)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dstFileName)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }
 
 func getSubDirs(dirPath string) (Set, error) {
@@ -114,9 +168,10 @@ func createFileNameHashValueMap(dirPath string) map[string][32]byte {
 	}
 	for _, entry := range files {
 		if !entry.IsDir() {
-			hash, err := hashFile(dirPath + entry.Name())
+			fileToHash := dirPath + entry.Name()
+			hash, err := hashFile(fileToHash)
 			if err != nil {
-				fmt.Print("Failed to hash file " + dirPath + entry.Name() + " error: " + err.Error())
+				fmt.Printf("Failed to hash file %v because of %v\n", fileToHash, err)
 			} else {
 				dict[entry.Name()] = hash
 			}
@@ -127,13 +182,13 @@ func createFileNameHashValueMap(dirPath string) map[string][32]byte {
 
 // Returned hash is of size 32 Byte
 func hashFile(filePath string) ([32]byte, error) {
-	var result *[32]byte
+	var resultHash *[32]byte
 	cryptoHash := sha256.New()
 	file, err := os.Open(filePath)
 	if err != nil {
-		return *result, err
+		return *resultHash, err
 	}
-
+	defer file.Close()
 	buffer := make([]byte, 32*1024)
 	for {
 		if n, err := file.Read(buffer); err == nil {
@@ -141,12 +196,10 @@ func hashFile(filePath string) ([32]byte, error) {
 		} else if err == io.EOF {
 			break
 		} else {
-			return *result, err
+			return *resultHash, err
 		}
 	}
 	// Cast the slice to an array according to https://stackoverflow.com/a/30285971/12828371
-	result = (*[32]byte)(cryptoHash.Sum(nil))
-	//var result [32]byte
-	//copy(result[:], cryptoHash.Sum(nil))
-	return *result, nil
+	resultHash = (*[32]byte)(cryptoHash.Sum(nil))
+	return *resultHash, nil
 }
