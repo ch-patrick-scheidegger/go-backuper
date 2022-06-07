@@ -1,38 +1,15 @@
-package main
+package backuper
 
 import (
 	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
+
+	. "github.com/ch-patrick-scheidegger/go-backuper/set"
 )
 
-// TODO remove me
-func toBeRemoved() {
-	fmt.Print("--- Hello World ---\n")
-	directoryPath := "C:/Users/Pat/Desktop/testFolder/"
-	entries, _ := os.ReadDir(directoryPath)
-	for _, entry := range entries {
-		fmt.Printf("Is dir: {%v}\n", entry.IsDir())
-		fmt.Printf("Name: {%v}\n", entry.Name())
-		if !entry.IsDir() {
-			signature, _ := hashFile(directoryPath + entry.Name())
-			fmt.Printf("SHA256 signature: {%v}\n", signature)
-		}
-	}
-}
-
-// https://pkg.go.dev/github.com/spf13/cobra?GOOS=windows
-// https://github.com/etcd-io/etcd/blob/main/etcdctl/go.mod
-// https://golang.google.cn/pkg/os/#DirEntry
-func main() {
-	fmt.Println("\n--- Backuper ---")
-	srcPath := "C:/Users/Pat/Desktop/src/"
-	dstPath := "C:/Users/Pat/Desktop/dst/"
-	backupDirectory(srcPath, dstPath)
-}
-
-func backupDirectory(srcPath string, dstPath string) {
+func BackupDirectory(srcPath string, dstPath string) {
 	fmt.Printf("Dir %v\n", srcPath)
 	srcFilesMap := createFileNameHashValueMap(srcPath)
 	dstFilesMap := createFileNameHashValueMap(dstPath)
@@ -101,7 +78,7 @@ func backupDirectory(srcPath string, dstPath string) {
 			}
 		} else {
 			subDirToCheck := srcSubDir + "/"
-			backupDirectory(srcPath+subDirToCheck, dstPath+subDirToCheck)
+			BackupDirectory(srcPath+subDirToCheck, dstPath+subDirToCheck)
 		}
 	}
 }
