@@ -8,28 +8,42 @@ import (
 
 	"github.com/spf13/cobra"
 
-	_ "github.com/ch-patrick-scheidegger/go-backuper/backuper"
+	"github.com/ch-patrick-scheidegger/go-backuper/backuper"
 )
 
+// https://github.com/codeedu/golang-cobra-example
 var rootCmd = &cobra.Command{
-	Use:   "backuper srcdir dstdir",
+	Use:   "backuper",
 	Short: "Copies all files and sub dirs from the source dir to the destination dir",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Got params '%v' and '%v'\n", args[0], args[1])
-		err := validatePathParam(args[0])
+		if len(args) < 2 {
+			fmt.Println("Must provide src and dst path")
+			return
+		}
+		src := formatPathParam(args[0])
+		dst := formatPathParam(args[1])
+		err := validatePathParam(src)
 		if err != nil {
 			fmt.Println("1. ", err)
 			return
 		}
-		err = validatePathParam(args[1])
+		err = validatePathParam(dst)
 		if err != nil {
 			fmt.Println("2. ", err)
 			return
 		}
 
-		//backuper.BackupDirectory(args[0], args[1])
+		backuper.BackupDirectory(src, dst)
 	},
+}
+
+func formatPathParam(parameter string) string {
+	parameter = strings.ReplaceAll(parameter, "\\", "/")
+	if !strings.HasSuffix(parameter, "/") {
+		parameter = parameter + "/"
+	}
+	return parameter
 }
 
 func validatePathParam(parameter string) error {
@@ -38,9 +52,6 @@ func validatePathParam(parameter string) error {
 	}
 	if _, err := os.Stat(parameter); os.IsNotExist(err) {
 		return errors.New("parameter must point to an existing directory")
-	}
-	if !strings.HasSuffix(parameter, "/") {
-		return errors.New("parameter must end with a backslash '/'")
 	}
 
 	return nil
